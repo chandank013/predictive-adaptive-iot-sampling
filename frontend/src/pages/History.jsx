@@ -10,7 +10,6 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
-  ShieldAlert,
 } from "lucide-react";
 import { trialHistory as fallbackTrialHistory, policyBadgeStyles } from "../data/mockData";
 
@@ -165,16 +164,6 @@ export default function History({ onViewTrial }) {
 
   return (
     <div className="w-full max-w-[1680px] mx-auto px-4 py-6 space-y-6">
-      {/* Simulation Notice */}
-      <div className="card p-3.5 bg-amber-50/70 border-amber-200/80 flex items-center justify-between text-xs text-amber-900">
-        <div className="flex items-center gap-2">
-          <ShieldAlert size={16} className="text-amber-600" />
-          <span className="font-semibold">SIMULATION MODE — NO PHYSICAL HARDWARE CONNECTED:</span>
-          <span>Trial records reflect synthetic sensor runs and benchmark evaluations saved to MongoDB.</span>
-        </div>
-        <span className="font-mono text-amber-700 bg-amber-100/80 px-2 py-0.5 rounded">All Trials Labeled Simulated</span>
-      </div>
-
       <div className="grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)] gap-6 overflow-x-hidden">
         <aside className="card p-5 h-fit space-y-6">
           <div className="flex items-center gap-2 font-bold text-slate-900">

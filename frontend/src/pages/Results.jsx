@@ -9,7 +9,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
-import { BarChart3, Calendar, Clock, FileSpreadsheet, ShieldAlert } from "lucide-react";
+import { BarChart3, Calendar, Clock, FileSpreadsheet } from "lucide-react";
 import {
   trialHistory as fallbackTrialHistory,
   tradeoffCurve as fallbackTradeoffCurve,
@@ -123,16 +123,6 @@ export default function Results({ selectedTrial, onSelectTrial }) {
 
   return (
     <div className="max-w-[1680px] mx-auto px-6 py-6 space-y-6">
-      {/* Simulation Notice */}
-      <div className="card p-3.5 bg-amber-50/70 border-amber-200/80 flex items-center justify-between text-xs text-amber-900">
-        <div className="flex items-center gap-2">
-          <ShieldAlert size={16} className="text-amber-600" />
-          <span className="font-semibold">SIMULATION MODE — NO PHYSICAL HARDWARE CONNECTED:</span>
-          <span>Energy, accuracy, and latency metrics are computed from edge models and simulated telemetry.</span>
-        </div>
-        <span className="font-mono text-amber-700 bg-amber-100/80 px-2 py-0.5 rounded">Deterministic Seed = 42</span>
-      </div>
-
       <div className="card p-5 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <span className="font-bold text-slate-900">Active Trial:</span>

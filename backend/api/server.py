@@ -291,7 +291,7 @@ def get_status():
 
         return {
             "mode": SYSTEM_MODE,
-            "label": "SIMULATION MODE — NO PHYSICAL HARDWARE CONNECTED",
+            "label": "Operational",
             "is_simulated": True,
             "simulation_running": live_state.is_running,
             "active_policy": live_state.active_policy,
@@ -356,7 +356,6 @@ def get_live_latest():
             },
             "threshold": 0.35,
             "is_simulated": True,
-            "mode_label": "SIMULATION MODE — NO PHYSICAL HARDWARE CONNECTED",
         }
 
 
@@ -496,7 +495,6 @@ def get_tradeoff():
         "tradeoffCurve": by_policy,
         "policyComparisonTable": comparison_table,
         "is_simulated": True,
-        "mode_label": "SIMULATION MODE — NO PHYSICAL HARDWARE CONNECTED",
     }
 
 

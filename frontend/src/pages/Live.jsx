@@ -197,14 +197,9 @@ export default function Live() {
                   <Activity size={20} />
                 </div>
                 <div>
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-lg font-bold text-slate-900">Live Vibration Sensor Telemetry</h2>
-                    <span className="text-[11px] font-semibold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">
-                      Simulated ADXL345
-                    </span>
-                  </div>
+                  <h2 className="text-lg font-bold text-slate-900">Live Vibration Sensor Telemetry</h2>
                   <p className="text-xs text-slate-500">
-                    Real-time acceleration deviation from 1g baseline ({isLiveFromBackend ? "Streaming from simulation engine" : "Standalone preview mode"})
+                    Real-time acceleration deviation from 1g baseline
                   </p>
                 </div>
               </div>

@@ -35,13 +35,6 @@ export default function Navbar({ activeTab, onChangeTab }) {
 
   return (
     <header className="bg-navy-900 text-white">
-      {/* Simulation Banner */}
-      <div className="bg-amber-500/20 border-b border-amber-500/30 text-amber-200 text-xs py-1.5 px-6 text-center font-semibold tracking-wider flex items-center justify-center gap-2">
-        <span className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
-        <span>SIMULATION MODE — NO PHYSICAL HARDWARE CONNECTED</span>
-        <span className="text-amber-300/80 font-normal">| Synthetic ADXL345 &amp; INA219 Edge Telemetry</span>
-      </div>
-
       <div className="max-w-[1680px] mx-auto px-6 py-3.5 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <img src="/logo.png" alt="Adaptive IoT Sensing logo" className="h-11 w-auto" />

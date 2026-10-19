@@ -39,7 +39,7 @@ class TestApiServer(unittest.TestCase):
         self.assertEqual(res.status_code, 200)
         data = res.json()
         self.assertEqual(data["mode"], "SIMULATION")
-        self.assertIn("SIMULATION MODE", data["label"])
+        self.assertEqual(data["label"], "Operational")
         self.assertTrue(data["is_simulated"])
 
     def test_live_latest(self):
