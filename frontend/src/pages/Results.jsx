@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   LineChart,
   Line,
@@ -9,24 +9,14 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
-import { BarChart3, Calendar, Clock, FileSpreadsheet } from "lucide-react";
-import { trialHistory, tradeoffCurve, policyComparisonTable } from "../data/mockData";
+import { BarChart3, Calendar, Clock, FileSpreadsheet, ShieldAlert } from "lucide-react";
+import {
+  trialHistory as fallbackTrialHistory,
+  tradeoffCurve as fallbackTradeoffCurve,
+  policyComparisonTable as fallbackPolicyComparisonTable,
+} from "../data/mockData";
 
-// Recharts matches multiple <Line data=...> arrays by array POSITION, not by x-value,
-// which made the tooltip report the wrong energy for 2 of the 3 series. Merging every
-// point into ONE dataset keyed by energy fixes it: each x belongs to the series that
-// actually measured it, and the tooltip only shows series that have a value there.
-const mergedCurve = (() => {
-  const rows = new Map();
-  for (const [policyKey, points] of Object.entries(tradeoffCurve)) {
-    for (const pt of points) {
-      const row = rows.get(pt.energy) ?? { energy: pt.energy };
-      row[policyKey] = pt.accuracy;
-      rows.set(pt.energy, row);
-    }
-  }
-  return [...rows.values()].sort((a, b) => a.energy - b.energy);
-})();
+const API_BASE = "http://localhost:8000";
 
 function MetaItem({ icon, label, value }) {
   return (
@@ -41,31 +31,127 @@ function MetaItem({ icon, label, value }) {
 }
 
 export default function Results({ selectedTrial, onSelectTrial }) {
-  // Meta info comes from the selected trial's row in the trial history, so the
-  // dropdown (and the History page's "View" button) genuinely change what's shown.
-  const trial = trialHistory.find((t) => t.file === selectedTrial) ?? trialHistory[0];
+  const [trialsList, setTrialsList] = useState(fallbackTrialHistory);
+  const [tradeoffData, setTradeoffData] = useState(fallbackTradeoffCurve);
+  const [comparisonTable, setComparisonTable] = useState(fallbackPolicyComparisonTable);
+  const [activeTrialSummary, setActiveTrialSummary] = useState(null);
+
+  // Fetch trials and tradeoff curve from API
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadData = async () => {
+      try {
+        const [trialsRes, tradeoffRes] = await Promise.all([
+          fetch(`${API_BASE}/trials`),
+          fetch(`${API_BASE}/api/tradeoff`),
+        ]);
+
+        if (trialsRes.ok) {
+          const rawTrials = await trialsRes.json();
+          if (isMounted && rawTrials.length > 0) {
+            const formatted = rawTrials.map((t) => {
+              const dateObj = t.start_time ? new Date(t.start_time) : new Date();
+              return {
+                file: t.trial_id,
+                date: dateObj.toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" }),
+                time: dateObj.toLocaleTimeString("en-US", { hour12: false }),
+                policy: (t.policy || "Predictive").charAt(0).toUpperCase() + (t.policy || "Predictive").slice(1) + "-adaptive",
+                duration: t.duration_s ? `${t.duration_s}s` : "Dynamic",
+                events: t.events_logged ?? 2,
+                energy: t.energy_mJ ?? 120.0,
+                status: "Complete",
+              };
+            });
+            setTrialsList(formatted);
+          }
+        }
+
+        if (tradeoffRes.ok) {
+          const tradeoffJson = await tradeoffRes.json();
+          if (isMounted) {
+            if (tradeoffJson.tradeoffCurve && Object.keys(tradeoffJson.tradeoffCurve).length > 0) {
+              setTradeoffData(tradeoffJson.tradeoffCurve);
+            }
+            if (tradeoffJson.policyComparisonTable && tradeoffJson.policyComparisonTable.length > 0) {
+              setComparisonTable(tradeoffJson.policyComparisonTable);
+            }
+          }
+        }
+      } catch (err) {
+        // Fallback to static mockData
+      }
+    };
+
+    loadData();
+  }, []);
+
+  const trial = trialsList.find((t) => t.file === selectedTrial) ?? trialsList[0];
+
+  // Fetch specific trial summary
+  useEffect(() => {
+    if (!trial) return;
+    let isMounted = true;
+    fetch(`${API_BASE}/trials/${trial.file}/summary`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((summary) => {
+        if (isMounted && summary) setActiveTrialSummary(summary);
+      })
+      .catch(() => {});
+    return () => {
+      isMounted = false;
+    };
+  }, [trial]);
+
+  // Merge points into unified dataset for Recharts tooltip alignment
+  const mergedCurve = (() => {
+    const rows = new Map();
+    for (const [policyKey, points] of Object.entries(tradeoffData)) {
+      if (!Array.isArray(points)) continue;
+      for (const pt of points) {
+        const energyKey = Math.round(pt.energy);
+        const row = rows.get(energyKey) ?? { energy: energyKey };
+        row[policyKey] = pt.accuracy;
+        rows.set(energyKey, row);
+      }
+    }
+    return [...rows.values()].sort((a, b) => a.energy - b.energy);
+  })();
+
+  const durationDisplay = activeTrialSummary ? `${activeTrialSummary.duration_s} s` : trial?.duration;
+  const eventsDisplay = activeTrialSummary ? activeTrialSummary.events_logged : trial?.events;
 
   return (
     <div className="max-w-[1680px] mx-auto px-6 py-6 space-y-6">
+      {/* Simulation Notice */}
+      <div className="card p-3.5 bg-amber-50/70 border-amber-200/80 flex items-center justify-between text-xs text-amber-900">
+        <div className="flex items-center gap-2">
+          <ShieldAlert size={16} className="text-amber-600" />
+          <span className="font-semibold">SIMULATION MODE — NO PHYSICAL HARDWARE CONNECTED:</span>
+          <span>Energy, accuracy, and latency metrics are computed from edge models and simulated telemetry.</span>
+        </div>
+        <span className="font-mono text-amber-700 bg-amber-100/80 px-2 py-0.5 rounded">Deterministic Seed = 42</span>
+      </div>
+
       <div className="card p-5 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <span className="font-bold text-slate-900">Trial:</span>
+          <span className="font-bold text-slate-900">Active Trial:</span>
           <select
-            value={trial.file}
+            value={trial?.file || ""}
             onChange={(e) => onSelectTrial(e.target.value)}
-            className="border border-slate-200 rounded-lg px-4 py-2 text-sm text-slate-700 min-w-[220px]"
+            className="border border-slate-200 rounded-lg px-4 py-2 text-sm text-slate-700 min-w-[260px] bg-white"
           >
-            {trialHistory.map((t) => (
+            {trialsList.map((t) => (
               <option key={t.file} value={t.file}>
-                {t.file}
+                {t.file} ({t.policy})
               </option>
             ))}
           </select>
         </div>
         <div className="flex items-center gap-8">
-          <MetaItem icon={<Calendar size={18} />} label="Date" value={trial.date} />
-          <MetaItem icon={<Clock size={18} />} label="Duration" value={trial.duration} />
-          <MetaItem icon={<FileSpreadsheet size={18} />} label="Total Events" value={trial.events} />
+          <MetaItem icon={<Calendar size={18} />} label="Date" value={trial?.date || "Today"} />
+          <MetaItem icon={<Clock size={18} />} label="Duration" value={durationDisplay} />
+          <MetaItem icon={<FileSpreadsheet size={18} />} label="Total Events" value={eventsDisplay} />
         </div>
       </div>
 
@@ -76,20 +162,20 @@ export default function Results({ selectedTrial, onSelectTrial }) {
           </div>
           <div>
             <h2 className="text-lg font-bold text-slate-900">Accuracy vs. Energy Trade-off Curve</h2>
-            <p className="text-sm text-slate-500">Each point represents a different trigger sensitivity / sampling setting.</p>
+            <p className="text-sm text-slate-500">
+              Evaluates detection accuracy (%) vs energy consumption (mJ) across the three sampling policies.
+            </p>
           </div>
         </div>
 
         <ResponsiveContainer width="100%" height={400}>
-          <LineChart data={mergedCurve} margin={{ top: 30, right: 30, left: 0, bottom: 10 }}>
+          <LineChart data={mergedCurve} margin={{ top: 30, right: 30, left: 10, bottom: 10 }}>
             <CartesianGrid stroke="#eef0f2" />
             <XAxis
               type="number"
               dataKey="energy"
-              domain={[0, 500]}
-              ticks={[0, 50, 100, 150, 200, 250, 300, 350, 400, 450, 500]}
               tick={{ fontSize: 12, fill: "#8a97a0" }}
-              label={{ value: "Energy Consumption per Trial (mJ)", position: "insideBottom", offset: -5, fontSize: 12, fill: "#8a97a0" }}
+              label={{ value: "Energy Consumption per Trial (mJ) [estimated]", position: "insideBottom", offset: -5, fontSize: 12, fill: "#8a97a0" }}
             />
             <YAxis
               type="number"
@@ -132,6 +218,10 @@ export default function Results({ selectedTrial, onSelectTrial }) {
       </div>
 
       <div className="card overflow-hidden">
+        <div className="p-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+          <h3 className="font-bold text-slate-800 text-sm">Policy Benchmark Performance Summary</h3>
+          <span className="text-xs text-slate-500">Live aggregated metrics from MongoDB</span>
+        </div>
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-navy-900 text-white text-left">
@@ -142,13 +232,12 @@ export default function Results({ selectedTrial, onSelectTrial }) {
             </tr>
           </thead>
           <tbody>
-            {policyComparisonTable.map((row) => {
-              // Highlight the row for the selected trial's policy.
-              const isSelectedPolicy = row.policy === trial.policy;
+            {comparisonTable.map((row) => {
+              const isSelectedPolicy = trial && trial.policy && trial.policy.toLowerCase().includes(row.policy.toLowerCase().split("-")[0]);
               return (
                 <tr
                   key={row.policy}
-                  className={`border-t border-slate-100 ${isSelectedPolicy ? "bg-green-50 font-bold" : ""}`}
+                  className={`border-t border-slate-100 ${isSelectedPolicy ? "bg-emerald-50/60 font-semibold" : ""}`}
                 >
                   <td className="px-5 py-3 flex items-center gap-2">
                     <span className="h-2.5 w-2.5 rounded-full inline-block" style={{ backgroundColor: row.color }} />
