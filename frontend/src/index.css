@@ -1,0 +1,13 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: "Inter", system-ui, sans-serif;
+  background-color: #eef2f5;
+  color: #1a2b33;
+}
+
+.card {
+  @apply bg-white rounded-xl shadow-sm border border-slate-200;
+}

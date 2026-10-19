@@ -1,0 +1,444 @@
+import React, { useMemo, useState } from "react";
+import {
+  Filter,
+  Search,
+  FileText,
+  Eye,
+  ChevronLeft,
+  ChevronRight,
+  RotateCcw,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+} from "lucide-react";
+import { trialHistory, policyBadgeStyles } from "../data/mockData";
+
+const POLICIES = ["Fixed-rate", "Threshold-adaptive", "Predictive-adaptive"];
+const STATUSES = ["Completed", "Running", "Failed"];
+const PAGE_SIZE = 5;
+
+const DEFAULT_FILTERS = {
+  policies: POLICIES,
+  statuses: ["Completed"],
+  start: "2026-09-25",
+  end: "2026-10-04",
+};
+
+const ROW_STATUS_TO_FILTER = {
+  Complete: "Completed",
+  Completed: "Completed",
+  Running: "Running",
+  Failed: "Failed",
+};
+
+const COLUMNS = [
+  { key: "date", label: "Date", sortable: true },
+  { key: "file", label: "", sortable: false },
+  { key: "policy", label: "Policy", sortable: true },
+  { key: "duration", label: "Duration", sortable: true },
+  { key: "events", label: "Events Detected", sortable: true },
+  { key: "energy", label: "Avg Energy (mA)", sortable: true },
+  { key: "status", label: "Status", sortable: true },
+  { key: "actions", label: "Actions", sortable: false },
+];
+
+function sortValue(row, key) {
+  if (key === "date") return Date.parse(`${row.date} ${row.time}`);
+  if (key === "duration") return parseInt(row.duration, 10);
+  return row[key];
+}
+
+function toggle(list, item) {
+  return list.includes(item)
+    ? list.filter((x) => x !== item)
+    : [...list, item];
+}
+
+export default function History({ onViewTrial }) {
+  const [staged, setStaged] = useState(DEFAULT_FILTERS);
+  const [applied, setApplied] = useState(DEFAULT_FILTERS);
+  const [search, setSearch] = useState("");
+  const [sortKey, setSortKey] = useState("date");
+  const [sortDir, setSortDir] = useState("desc");
+  const [page, setPage] = useState(1);
+
+  function applyFilters() {
+    setApplied(staged);
+    setPage(1);
+  }
+
+  function resetFilters() {
+    setStaged(DEFAULT_FILTERS);
+    setApplied(DEFAULT_FILTERS);
+    setSearch("");
+    setSortKey("date");
+    setSortDir("desc");
+    setPage(1);
+  }
+
+  function handleSort(key) {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+    setPage(1);
+  }
+
+  const rows = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const start = applied.start
+      ? new Date(`${applied.start}T00:00:00`)
+      : null;
+    const end = applied.end
+      ? new Date(`${applied.end}T00:00:00`)
+      : null;
+
+    const filtered = trialHistory.filter((row) => {
+      const rowDate = new Date(row.date);
+
+      if (start && rowDate < start) return false;
+      if (end && rowDate > end) return false;
+      if (!applied.policies.includes(row.policy)) return false;
+
+      if (
+        !applied.statuses.includes(
+          ROW_STATUS_TO_FILTER[row.status] ?? row.status
+        )
+      ) {
+        return false;
+      }
+
+      if (q) {
+        const haystack =
+          `${row.file} ${row.policy} ${row.date}`.toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
+
+      return true;
+    });
+
+    const dir = sortDir === "asc" ? 1 : -1;
+
+    return [...filtered].sort((a, b) => {
+      const av = sortValue(a, sortKey);
+      const bv = sortValue(b, sortKey);
+      if (av < bv) return -1 * dir;
+      if (av > bv) return 1 * dir;
+      return 0;
+    });
+  }, [applied, search, sortKey, sortDir]);
+
+  const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pageRows = rows.slice(
+    (safePage - 1) * PAGE_SIZE,
+    safePage * PAGE_SIZE
+  );
+  const showingFrom =
+    rows.length === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1;
+  const showingTo = (safePage - 1) * PAGE_SIZE + pageRows.length;
+
+  return (
+    <div className="w-full max-w-[1680px] mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)] gap-6 overflow-x-hidden">
+      <aside className="card p-5 h-fit space-y-6">
+        <div className="flex items-center gap-2 font-bold text-slate-900">
+          <Filter size={18} />
+          Filters
+        </div>
+
+        <div>
+          <p className="text-sm font-semibold text-slate-700 mb-2">
+            Policy Type
+          </p>
+          <div className="space-y-2">
+            {POLICIES.map((p) => (
+              <label
+                key={p}
+                className="flex items-center gap-2 text-sm text-slate-600"
+              >
+                <input
+                  type="checkbox"
+                  checked={staged.policies.includes(p)}
+                  onChange={() =>
+                    setStaged((s) => ({
+                      ...s,
+                      policies: toggle(s.policies, p),
+                    }))
+                  }
+                  className="rounded border-slate-300 text-navy-800 focus:ring-navy-800"
+                />
+                {p}
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <p className="text-sm font-semibold text-slate-700 mb-2">
+            Date Range
+          </p>
+          <div className="space-y-2">
+            <label className="block">
+              <span className="text-xs text-slate-500">Start Date</span>
+              <input
+                type="date"
+                value={staged.start}
+                max={staged.end || undefined}
+                onChange={(e) =>
+                  setStaged((s) => ({ ...s, start: e.target.value }))
+                }
+                className="mt-1 w-full text-sm border border-slate-200 rounded-lg px-3 py-2 text-slate-600"
+              />
+            </label>
+
+            <label className="block">
+              <span className="text-xs text-slate-500">End Date</span>
+              <input
+                type="date"
+                value={staged.end}
+                min={staged.start || undefined}
+                onChange={(e) =>
+                  setStaged((s) => ({ ...s, end: e.target.value }))
+                }
+                className="mt-1 w-full text-sm border border-slate-200 rounded-lg px-3 py-2 text-slate-600"
+              />
+            </label>
+          </div>
+        </div>
+
+        <div>
+          <p className="text-sm font-semibold text-slate-700 mb-2">Status</p>
+          <div className="space-y-2">
+            {STATUSES.map((s) => (
+              <label
+                key={s}
+                className="flex items-center gap-2 text-sm text-slate-600"
+              >
+                <input
+                  type="checkbox"
+                  checked={staged.statuses.includes(s)}
+                  onChange={() =>
+                    setStaged((st) => ({
+                      ...st,
+                      statuses: toggle(st.statuses, s),
+                    }))
+                  }
+                  className="rounded border-slate-300 text-navy-800 focus:ring-navy-800"
+                />
+                {s}
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-2 pt-2">
+          <button
+            onClick={applyFilters}
+            className="w-full bg-navy-900 text-white text-sm font-semibold py-2.5 rounded-lg flex items-center justify-center gap-2 hover:bg-navy-800"
+          >
+            <Filter size={16} /> Apply Filters
+          </button>
+          <button
+            onClick={resetFilters}
+            className="w-full border border-slate-200 text-slate-700 text-sm font-semibold py-2.5 rounded-lg flex items-center justify-center gap-2 hover:bg-slate-50"
+          >
+            <RotateCcw size={16} /> Reset Filters
+          </button>
+        </div>
+      </aside>
+
+      <div className="card p-6 min-w-0 h-fit">
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-5">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-lg bg-sky-50 flex items-center justify-center text-sky-600">
+              <FileText size={20} />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-slate-900">
+                Trial History
+              </h2>
+              <p className="text-sm text-slate-500">
+                View and manage all experiment trials
+              </p>
+            </div>
+          </div>
+
+          <div className="relative">
+            <Search
+              size={16}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+            />
+            <input
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+              placeholder="Search by trial name, policy or date..."
+              className="pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-lg w-72 max-w-full"
+            />
+          </div>
+        </div>
+
+        <div className="w-full min-w-0 overflow-hidden">
+          <table className="w-full table-fixed text-xs sm:text-sm">
+            <thead>
+              <tr className="bg-navy-900 text-white text-left">
+                {COLUMNS.map((col) => {
+                  const active = sortKey === col.key;
+                  const Icon = !col.sortable
+                    ? null
+                    : active
+                      ? sortDir === "asc"
+                        ? ArrowUp
+                        : ArrowDown
+                      : ArrowUpDown;
+
+                  return (
+                    <th
+                      key={col.key}
+                      className="px-2 sm:px-3 py-3 font-semibold"
+                    >
+                      {col.sortable ? (
+                        <button
+                          onClick={() => handleSort(col.key)}
+                          className="flex items-center gap-1.5 font-semibold hover:text-sky-200"
+                          aria-label={`Sort by ${col.label}`}
+                        >
+                          {col.label}
+                          <Icon
+                            size={13}
+                            className={
+                              active ? "text-white" : "text-slate-300"
+                            }
+                          />
+                        </button>
+                      ) : (
+                        col.label
+                      )}
+                    </th>
+                  );
+                })}
+              </tr>
+            </thead>
+
+            <tbody>
+              {pageRows.map((row) => (
+                <tr
+                  key={row.file}
+                  className="border-t border-slate-100"
+                >
+                  <td className="px-2 sm:px-3 py-3">
+                    <div className="font-semibold text-slate-900">
+                      {row.date}
+                    </div>
+                    <div className="text-xs text-slate-400">{row.time}</div>
+                  </td>
+
+                  <td className="px-2 sm:px-3 py-3 text-slate-500">
+                    <span className="block truncate" title={row.file}>
+                      {row.file}
+                    </span>
+                  </td>
+
+                  <td className="px-2 sm:px-3 py-3">
+                    <span
+                      className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
+                        policyBadgeStyles[row.policy]
+                      }`}
+                    >
+                      {row.policy}
+                    </span>
+                  </td>
+
+                  <td className="px-2 sm:px-3 py-3 text-slate-700">
+                    {row.duration}
+                  </td>
+
+                  <td className="px-2 sm:px-3 py-3 text-slate-700">
+                    {row.events}
+                  </td>
+
+                  <td className="px-2 sm:px-3 py-3 text-slate-700">
+                    {row.energy}
+                  </td>
+
+                  <td className="px-2 sm:px-3 py-3">
+                    <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-green-100 text-green-700 flex items-center gap-1 w-fit">
+                      <span className="h-1.5 w-1.5 rounded-full bg-green-600" />
+                      {row.status}
+                    </span>
+                  </td>
+
+                  <td className="px-2 sm:px-3 py-3">
+                    <button
+                      onClick={() => onViewTrial?.(row.file)}
+                      className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 flex items-center gap-1 hover:bg-slate-200"
+                    >
+                      <Eye size={14} /> View
+                    </button>
+                  </td>
+                </tr>
+              ))}
+
+              {pageRows.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={COLUMNS.length}
+                    className="px-2 sm:px-3 py-10 text-center text-slate-400"
+                  >
+                    No trials match the current filters.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="flex items-center justify-between mt-5 text-sm text-slate-500">
+          <span>
+            Showing {showingFrom} to {showingTo} of {rows.length} trials
+          </span>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setPage(Math.max(1, safePage - 1))}
+              disabled={safePage === 1}
+              aria-label="Previous page"
+              className="h-8 w-8 flex items-center justify-center border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <ChevronLeft size={16} />
+            </button>
+
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => (
+              <button
+                key={n}
+                onClick={() => setPage(n)}
+                className={`h-8 w-8 flex items-center justify-center rounded-lg font-semibold ${
+                  n === safePage
+                    ? "bg-navy-900 text-white"
+                    : "border border-slate-200 hover:bg-slate-50"
+                }`}
+              >
+                {n}
+              </button>
+            ))}
+
+            <button
+              onClick={() =>
+                setPage(Math.min(totalPages, safePage + 1))
+              }
+              disabled={safePage === totalPages}
+              aria-label="Next page"
+              className="h-8 w-8 flex items-center justify-center border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
